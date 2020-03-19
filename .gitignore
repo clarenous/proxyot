@@ -20,3 +20,7 @@ bin/
 
 # Darwin files
 .DS_Store
+
+# Reports
+lint.report
+test.report
