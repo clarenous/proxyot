@@ -88,7 +88,7 @@ func (params *Params) RevealKeyPoint(T curve.Point, r *big.Int) curve.Point {
 }
 
 func newPoint() curve.Point {
-	return curve.NewPoint(curve.TypeG1)
+	return curve.NewPoint(curve.TypeG2)
 }
 
 var defaultGeneratorH curve.Point
