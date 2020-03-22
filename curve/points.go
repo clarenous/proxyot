@@ -1,22 +1,15 @@
 package curve
 
 import (
+	"fmt"
+	"io"
 	"math/big"
 
 	"github.com/cloudflare/bn256"
 )
 
-const (
-	// TypeG1 represents point type G1
-	TypeG1 = iota
-	// TypeG2 represents point type G2
-	TypeG2
-	// TypeGT represents point type GT
-	TypeGT
-)
-
 type Point interface {
-	Name() string
+	Curve() Curve
 	String() string
 	Marshal() []byte
 	Unmarshal(m []byte) ([]byte, error)
@@ -27,8 +20,8 @@ type Point interface {
 	Set(a Point) Point
 }
 
-func NewPoint(typ int) (point Point) {
-	switch typ {
+func NewPoint(curve Curve) (point Point) {
+	switch curve {
 	case TypeG1:
 		point = new(G1)
 	case TypeG2:
@@ -39,10 +32,21 @@ func NewPoint(typ int) (point Point) {
 	return
 }
 
+func NewRandomPoint(curve Curve, r io.Reader) (n *big.Int, point Point, err error) {
+	if point = NewPoint(curve); point == nil {
+		return nil, nil, fmt.Errorf("invalid curve: %s", curve)
+	}
+	if n, err = RandomFieldElement(r); err != nil {
+		return nil, nil, err
+	}
+	point.ScalarBaseMult(n)
+	return
+}
+
 type G1 bn256.G1
 
-func (e *G1) Name() string {
-	return "bn256.G1"
+func (e *G1) Curve() Curve {
+	return TypeG1
 }
 
 func (e *G1) String() string {
@@ -84,8 +88,8 @@ func (e *G1) Set(a Point) Point {
 
 type G2 bn256.G2
 
-func (e *G2) Name() string {
-	return "bn256.G2"
+func (e *G2) Curve() Curve {
+	return TypeG2
 }
 
 func (e *G2) String() string {
@@ -132,8 +136,8 @@ func Pair(g1 *G1, g2 *G2) *GT {
 	return (*GT)(gt)
 }
 
-func (e *GT) Name() string {
-	return "bn256.GT"
+func (e *GT) Curve() Curve {
+	return TypeGT
 }
 
 func (e *GT) String() string {
