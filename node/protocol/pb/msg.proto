@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package msg;
+
+message OtChoiceRequest {
+    string cid   = 1; // File set content identifier
+    bytes  owner = 2; // Owner public key
+    bytes  yp    = 3; // Y point
+    bytes  lp    = 4; // L point
+}
+
+message OtChoiceResponse {
+    uint32 error_code = 1;
+    string error_msg  = 2;
+}
+
+message PreReEncryptRequest {
+    string cid    = 1; // File set content identifier
+    bytes  ap     = 2; // A point
+    bytes  re_key = 3; // Re-key
+    string txid   = 4; // ID of this file proxy ot transaction
+}
+
+message PreReEncryptResponse {
+    uint32 error_code = 1;
+    string error_msg  = 2;
+}
+
+message StorUploadRequest {
+    bytes  owner      = 1; // Owner public key
+    bytes  sig        = 2; // Signature on this request
+    uint32 set        = 3; // Ordinal of the file set
+    string cid        = 4; // CID of the file to be uploaded
+    uint64 file_size  = 5; // File Size
+}
+
+message StorUploadResponse {
+    uint32 error_code = 1;
+    string error_msg  = 2;
+    string uploader   = 3;
+}
+
+// if owner is not empty, the request will be proceeded as owner downloading
+// or if owner is empty, the request will be proceeded by txid
+message StorDownloadRequest {
+    bytes  owner = 1; // Owner public key
+    string cid   = 2; // CID of the file set to be downloaded
+    string txid  = 3; // ID of this file proxy ot transaction
+}
+
+message StorDownloadResponse {
+    uint32 error_code = 1;
+    string error_msg  = 2;
+    string downloader = 3;
+}
