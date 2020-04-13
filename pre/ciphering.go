@@ -65,7 +65,10 @@ func NewEncryptClosure(input io.Reader, output io.Writer) EncryptClosure {
 
 		// start HMAC-SHA-256
 		hm := hmac.New(sha256.New, keyM)
-		hm.Write(text[:len(text)-sha256.Size])          // everything is hashed
+		// everything is hashed
+		if _, err = hm.Write(text[:len(text)-sha256.Size]); err != nil {
+			return err
+		}
 		copy(text[len(text)-sha256.Size:], hm.Sum(nil)) // write checksum
 
 		_, err = output.Write(text)
@@ -100,7 +103,11 @@ func NewDecryptClosure(input io.Reader, output io.Writer) DecryptClosure {
 
 		// verify mac
 		hm := hmac.New(sha256.New, keyM)
-		hm.Write(text[:len(text)-sha256.Size]) // everything is hashed
+
+		// everything is hashed
+		if _, err = hm.Write(text[:len(text)-sha256.Size]); err != nil {
+			return err
+		}
 		expectedMAC := hm.Sum(nil)
 		if !hmac.Equal(messageMAC, expectedMAC) {
 			return errInvalidMAC
