@@ -54,7 +54,7 @@ func TestNode(t *testing.T) {
 }
 
 const (
-	replyTimeout    = time.Second * 30
+	replyTimeout    = time.Second * 300
 	ctxAlice        = "alice"
 	ctxBob          = "bob"
 	ctxProxy        = "proxy"
@@ -76,12 +76,24 @@ var (
 	tcProxyReEncrypt      = NewTimeCounter("proxy_re_encrypt")
 )
 
+var allTimeCounters = []*TimeCounter{
+	tcAliceEncrypt,
+	tcAliceGenerateReKeys,
+	tcBobSendChoice,
+	tcBobDecrypt,
+	tcProxyReEncrypt,
+}
+
 func ClearAllTimeCounters() {
-	tcAliceEncrypt.Clear()
-	tcAliceGenerateReKeys.Clear()
-	tcBobSendChoice.Clear()
-	tcBobDecrypt.Clear()
-	tcProxyReEncrypt.Clear()
+	for _, tc := range allTimeCounters {
+		tc.Clear()
+	}
+}
+
+func PrintAllTimeCounters() {
+	for _, tc := range allTimeCounters {
+		fmt.Printf("item: %s, count: %d, avg: %f seconds\n", tc.Name(), tc.Count(), tc.Avg().Seconds())
+	}
 }
 
 type TimeCounter struct {
@@ -107,6 +119,10 @@ func (tc *TimeCounter) Avg() time.Duration {
 		sum += duration
 	}
 	return sum / time.Duration(len(tc.durations))
+}
+
+func (tc *TimeCounter) Count() int {
+	return len(tc.durations)
 }
 
 func (tc *TimeCounter) Durations() []time.Duration {
@@ -144,6 +160,8 @@ func NewAlice(node *node.BaseNode, ctx *ContextWithValue) *Alice {
 }
 
 func (alice *Alice) OnChoiceRequest(choice *protocol.OtChoice) protocol.Error {
+	start := time.Now()
+
 	kps, LPrime, err := ot.CalculateKeyPoints(choice.Y, choice.L, alice.PublicKey, alice.Ctx.Value(ctxFilesCount).(int64))
 	if err != nil {
 		return protocol.UnknownError(err.Error())
@@ -157,6 +175,8 @@ func (alice *Alice) OnChoiceRequest(choice *protocol.OtChoice) protocol.Error {
 	for i := range keys {
 		reKeys[i] = pre.GenerateReKey(alice.PrivateKey, keys[i])
 	}
+
+	tcAliceGenerateReKeys.Add(time.Since(start))
 
 	preArgs := &protocol.PreArgs{
 		Cid:    choice.Cid,
@@ -215,11 +235,15 @@ func NewProxy(node *node.BaseNode, ctx *ContextWithValue) *Proxy {
 }
 
 func (proxy *Proxy) OnReEncryptRequest(args *protocol.PreArgs) protocol.Error {
+	start := time.Now()
+
 	As := proxy.Ctx.Value(ctxAPoints).([]curve.Point)
 	APrimes := make([]curve.Point, len(As))
 	for i := range args.ReKeys {
 		APrimes[i] = pre.ReEncrypt(As[i], args.ReKeys[i])
 	}
+
+	tcProxyReEncrypt.Add(time.Since(start))
 
 	proxy.Ctx.SetValue(ctxAPrimePoints, APrimes)
 	proxy.Ctx.SetValue(ctxLPrime, args.LPrime)
@@ -236,9 +260,21 @@ func (proxy *Proxy) OnDownloadRequest(ticket *protocol.DownloadTicket) (string, 
 }
 
 func TestNodeP2P(t *testing.T) {
-	err := performNodesInteraction(1024, 1, 1)
-	if err != nil {
-		t.Error(err)
+	mrand.Seed(time.Now().UnixNano())
+
+	var Target int64 = 5
+	for FileSize := int64(1000); FileSize <= 1000000; FileSize *= 10 {
+		for FileCount := int64(10); FileCount <= 100; FileCount += 10 {
+			err := performNodesInteraction(FileSize, FileCount, Target)
+			if err != nil {
+				t.Error(err)
+			}
+			fmt.Println()
+			fmt.Printf("FileSize: %d, FileCount: %d, Target: %d\n", FileSize, FileCount, Target)
+			PrintAllTimeCounters()
+			ClearAllTimeCounters()
+			fmt.Println()
+		}
 	}
 }
 
@@ -334,13 +370,13 @@ func deriveKeyFromPoint(point curve.Point) *big.Int {
 
 func makeThreeParty() (*Alice, *Bob, *Proxy, *ContextWithValue, func()) {
 	nodeAlice := node.NewRandomBaseNode(41001)
-	log.Println("running nodeAlice...", nodeAlice.Host.ID(), nodeAlice.Host.Addrs())
+	//log.Println("running nodeAlice...", nodeAlice.Host.ID(), nodeAlice.Host.Addrs())
 
 	nodeBob := node.NewRandomBaseNode(41002)
-	log.Println("running nodeBob...", nodeBob.Host.ID(), nodeBob.Host.Addrs())
+	//log.Println("running nodeBob...", nodeBob.Host.ID(), nodeBob.Host.Addrs())
 
 	nodeProxy := node.NewRandomBaseNode(41003)
-	log.Println("running nodeProxy...", nodeProxy.Host.ID(), nodeProxy.Host.Addrs())
+	//log.Println("running nodeProxy...", nodeProxy.Host.ID(), nodeProxy.Host.Addrs())
 
 	nodeAlice.Host.Peerstore().AddAddrs(nodeBob.Host.ID(), nodeBob.Host.Addrs(), peerstore.PermanentAddrTTL)
 	nodeAlice.Host.Peerstore().AddAddrs(nodeProxy.Host.ID(), nodeProxy.Host.Addrs(), peerstore.PermanentAddrTTL)
@@ -367,7 +403,7 @@ func makeThreeParty() (*Alice, *Bob, *Proxy, *ContextWithValue, func()) {
 		alice.Host.Close()
 		bob.Host.Close()
 		proxy.Host.Close()
-		log.Println("[INFO] three party closed")
+		//log.Println("[INFO] three party closed")
 	}
 	return alice, bob, proxy, ctx, closer
 }
@@ -389,6 +425,7 @@ func mustMakeRandomBytes(size int64) []byte {
 }
 
 func encryptFiles(alice *Alice, files [][]byte) (As []curve.Point, ciphertexts [][]byte, err error) {
+	start := time.Now()
 	for i := range files {
 		a, ciphertext, err := encryptFile(alice, files[i])
 		if err != nil {
@@ -397,6 +434,7 @@ func encryptFiles(alice *Alice, files [][]byte) (As []curve.Point, ciphertexts [
 		As = append(As, a)
 		ciphertexts = append(ciphertexts, ciphertext)
 	}
+	tcAliceEncrypt.Add(time.Since(start))
 	return
 }
 
@@ -411,6 +449,8 @@ func encryptFile(alice *Alice, file []byte) (A curve.Point, ciphertext []byte, e
 }
 
 func decryptFile(bob *Bob, cipher []byte, ordinal int64) (file []byte, err error) {
+	start := time.Now()
+
 	APrimes := bob.Ctx.Value(ctxAPrimePoints).([]curve.Point)
 	LPrime := bob.Ctx.Value(ctxLPrime).(curve.Point)
 	kp := ot.RevealKeyPoint(LPrime, bob.PrivateKey)
@@ -421,6 +461,8 @@ func decryptFile(bob *Bob, cipher []byte, ordinal int64) (file []byte, err error
 	if err != nil {
 		return nil, err
 	}
+
+	tcBobDecrypt.Add(time.Since(start))
 	return buf.Bytes(), nil
 }
 
@@ -449,10 +491,14 @@ func uploadFile(alice *Alice, proxy *Proxy, file []byte, mh multihash.Multihash)
 }
 
 func sendChoice(alice *Alice, bob *Bob, mh multihash.Multihash, target int64) error {
+	start := time.Now()
+
 	yp, lp, err := ot.SealChoice(big.NewInt(target), alice.PublicKey, bob.PublicKey)
 	if err != nil {
 		return err
 	}
+
+	tcBobSendChoice.Add(time.Since(start))
 
 	choice := &protocol.OtChoice{
 		Cid:   cid.NewCidV0(mh),
