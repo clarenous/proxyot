@@ -18,10 +18,10 @@ const (
 )
 
 type PreArgs struct {
-	Cid   cid.Cid
-	A     curve.Point
-	ReKey curve.Point
-	TxID  cid.Cid
+	Cid    cid.Cid
+	LPrime curve.Point
+	ReKeys []curve.Point
+	TxID   cid.Cid
 }
 
 type PreServerNode interface {
@@ -57,16 +57,20 @@ func (p *PreServer) onReEncryptRequest(s network.Stream) {
 		return
 	}
 
-	ap := curve.NewPoint(curve.TypeG1)
-	if _, err := ap.Unmarshal(req.Ap); err != nil {
-		// TODO: bad ap
+	lpp := curve.NewPoint(curve.TypeG1)
+	if _, err := lpp.Unmarshal(req.Lpp); err != nil {
+		// TODO: bad lpp
 		return
 	}
 
-	reKey := curve.NewPoint(curve.TypeG2)
-	if _, err = reKey.Unmarshal(req.ReKey); err != nil {
-		// TODO: bad reKey
-		return
+	reKeys := make([]curve.Point, len(req.ReKeys))
+	for i := range req.ReKeys {
+		reKey := curve.NewPoint(curve.TypeG2)
+		if _, err = reKey.Unmarshal(req.ReKeys[i]); err != nil {
+			// TODO: bad reKey
+			return
+		}
+		reKeys[i] = reKey
 	}
 
 	txid, err := cid.Decode(req.Txid)
@@ -76,10 +80,10 @@ func (p *PreServer) onReEncryptRequest(s network.Stream) {
 	}
 
 	args := &PreArgs{
-		Cid:   id,
-		A:     ap,
-		ReKey: reKey,
-		TxID:  txid,
+		Cid:    id,
+		LPrime: lpp,
+		ReKeys: reKeys,
+		TxID:   txid,
 	}
 	pErr := p.node.OnReEncryptRequest(args)
 
@@ -121,11 +125,15 @@ func (p *PreClient) onReEncryptResponse(s network.Stream) {
 }
 
 func (p *PreClient) SendReEncrypt(ctx context.Context, peerID peer.ID, args *PreArgs) Error {
+	reKeys := make([][]byte, len(args.ReKeys))
+	for i := range args.ReKeys {
+		reKeys[i] = args.ReKeys[i].Marshal()
+	}
 	req := &msg.PreReEncryptRequest{
-		Cid:   args.Cid.String(),
-		Ap:    args.A.Marshal(),
-		ReKey: args.ReKey.Marshal(),
-		Txid:  args.TxID.String(),
+		Cid:    args.Cid.String(),
+		Lpp:    args.LPrime.Marshal(),
+		ReKeys: reKeys,
+		Txid:   args.TxID.String(),
 	}
 	sendProtoMsg(p.node, peerID, preReEncryptRequest, req)
 	v, err := p.pool.Wait(ctx, preReEncryptResponse)

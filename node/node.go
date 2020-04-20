@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/clarenous/proxyot/node/protocol"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -41,20 +40,4 @@ func (node *BaseNode) NewStream(ctx context.Context, p peer.ID, pids ...p2pproto
 
 func (node *BaseNode) SetStreamHandler(pid p2pprotocol.ID, handler network.StreamHandler) {
 	node.Host.SetStreamHandler(pid, handler)
-}
-
-func (node *BaseNode) OnChoiceRequest(choice *protocol.OtChoice) protocol.Error {
-	return protocol.NilError()
-}
-
-func (node *BaseNode) OnReEncryptRequest(args *protocol.PreArgs) protocol.Error {
-	return protocol.NilError()
-}
-
-func (node *BaseNode) OnUploadRequest(ticket *protocol.UploadTicket) (string, protocol.Error) {
-	return "uploader_string", protocol.NilError()
-}
-
-func (node *BaseNode) OnDownloadRequest(ticket *protocol.DownloadTicket) (string, protocol.Error) {
-	return "downloader_string", protocol.NilError()
 }

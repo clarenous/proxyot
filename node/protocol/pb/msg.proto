@@ -15,10 +15,10 @@ message OtChoiceResponse {
 }
 
 message PreReEncryptRequest {
-    string cid    = 1; // File set content identifier
-    bytes  ap     = 2; // A point
-    bytes  re_key = 3; // Re-key
-    string txid   = 4; // ID of this file proxy ot transaction
+    string         cid    = 1; // File set content identifier
+    bytes          lpp    = 2; // LPrime point
+    repeated bytes re_keys = 3; // Re-keys
+    string         txid   = 4; // ID of this file proxy ot transaction
 }
 
 message PreReEncryptResponse {
