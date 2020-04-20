@@ -115,8 +115,9 @@ func (p *OtClient) onChoiceResponse(s network.Stream) {
 		return
 	}
 	s.Close()
-	err := p.pool.Push(otChoiceResponse, resp)
-	fmt.Println("Ot Choice Response:", resp.ErrorCode, resp.ErrorMsg, err)
+	if err := p.pool.Push(otChoiceResponse, resp); err != nil {
+		fmt.Println("Ot Choice Response:", resp.ErrorCode, resp.ErrorMsg, err)
+	}
 }
 
 func (p *OtClient) SendChoice(ctx context.Context, peerID peer.ID, choice *OtChoice) Error {

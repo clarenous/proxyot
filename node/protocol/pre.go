@@ -120,8 +120,9 @@ func (p *PreClient) onReEncryptResponse(s network.Stream) {
 		return
 	}
 	s.Close()
-	err := p.pool.Push(preReEncryptResponse, resp)
-	fmt.Println("Pre ReEncrypt Response:", resp.ErrorCode, resp.ErrorMsg, err)
+	if err := p.pool.Push(preReEncryptResponse, resp); err != nil {
+		fmt.Println("Pre ReEncrypt Response:", resp.ErrorCode, resp.ErrorMsg, err)
+	}
 }
 
 func (p *PreClient) SendReEncrypt(ctx context.Context, peerID peer.ID, args *PreArgs) Error {

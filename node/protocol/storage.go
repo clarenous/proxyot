@@ -162,8 +162,9 @@ func (p *StorageClient) onUploadResponse(s network.Stream) {
 		return
 	}
 	s.Close()
-	err := p.pool.Push(storUploadResponse, resp)
-	fmt.Println("Stor Upload Response:", resp.ErrorCode, resp.ErrorMsg, err)
+	if err := p.pool.Push(storUploadResponse, resp); err != nil {
+		fmt.Println("Stor Upload Response:", resp.ErrorCode, resp.ErrorMsg, err)
+	}
 }
 
 func (p *StorageClient) onDownloadResponse(s network.Stream) {
@@ -175,8 +176,9 @@ func (p *StorageClient) onDownloadResponse(s network.Stream) {
 		return
 	}
 	s.Close()
-	err := p.pool.Push(storDownloadResponse, resp)
-	fmt.Println("Stor Download Response:", resp.ErrorCode, resp.ErrorMsg, err)
+	if err := p.pool.Push(storDownloadResponse, resp); err != nil {
+		fmt.Println("Stor Download Response:", resp.ErrorCode, resp.ErrorMsg, err)
+	}
 }
 
 func (p *StorageClient) SendUploadRequest(ctx context.Context, peerID peer.ID, ticket *UploadTicket) (string, error) {

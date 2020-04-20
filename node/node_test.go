@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"log"
 	"math/big"
@@ -67,6 +68,55 @@ const (
 	ctxFilesCount   = "files_count"
 )
 
+var (
+	tcAliceEncrypt        = NewTimeCounter("alice_encrypt")
+	tcAliceGenerateReKeys = NewTimeCounter("alice_generate_re_keys")
+	tcBobSendChoice       = NewTimeCounter("bob_send_choice")
+	tcBobDecrypt          = NewTimeCounter("bob_decrypt")
+	tcProxyReEncrypt      = NewTimeCounter("proxy_re_encrypt")
+)
+
+func ClearAllTimeCounters() {
+	tcAliceEncrypt.Clear()
+	tcAliceGenerateReKeys.Clear()
+	tcBobSendChoice.Clear()
+	tcBobDecrypt.Clear()
+	tcProxyReEncrypt.Clear()
+}
+
+type TimeCounter struct {
+	name      string
+	durations []time.Duration
+}
+
+func NewTimeCounter(name string) *TimeCounter {
+	return &TimeCounter{name: name}
+}
+
+func (tc *TimeCounter) Name() string {
+	return tc.name
+}
+
+func (tc *TimeCounter) Add(duration time.Duration) {
+	tc.durations = append(tc.durations, duration)
+}
+
+func (tc *TimeCounter) Avg() time.Duration {
+	var sum time.Duration
+	for _, duration := range tc.durations {
+		sum += duration
+	}
+	return sum / time.Duration(len(tc.durations))
+}
+
+func (tc *TimeCounter) Durations() []time.Duration {
+	return tc.durations
+}
+
+func (tc *TimeCounter) Clear() {
+	tc.durations = nil
+}
+
 type Alice struct {
 	Ctx *ContextWithValue
 	*node.BaseNode
@@ -94,8 +144,6 @@ func NewAlice(node *node.BaseNode, ctx *ContextWithValue) *Alice {
 }
 
 func (alice *Alice) OnChoiceRequest(choice *protocol.OtChoice) protocol.Error {
-	log.Println("[INFO] OnChoiceRequest", choice)
-
 	kps, LPrime, err := ot.CalculateKeyPoints(choice.Y, choice.L, alice.PublicKey, alice.Ctx.Value(ctxFilesCount).(int64))
 	if err != nil {
 		return protocol.UnknownError(err.Error())
@@ -167,8 +215,6 @@ func NewProxy(node *node.BaseNode, ctx *ContextWithValue) *Proxy {
 }
 
 func (proxy *Proxy) OnReEncryptRequest(args *protocol.PreArgs) protocol.Error {
-	log.Println("[INFO] OnReEncryptRequest", args)
-
 	As := proxy.Ctx.Value(ctxAPoints).([]curve.Point)
 	APrimes := make([]curve.Point, len(As))
 	for i := range args.ReKeys {
@@ -182,24 +228,27 @@ func (proxy *Proxy) OnReEncryptRequest(args *protocol.PreArgs) protocol.Error {
 }
 
 func (proxy *Proxy) OnUploadRequest(ticket *protocol.UploadTicket) (string, protocol.Error) {
-	log.Println("[INFO] OnUploadRequest", ticket)
 	return "uploader_string", protocol.NilError()
 }
 
 func (proxy *Proxy) OnDownloadRequest(ticket *protocol.DownloadTicket) (string, protocol.Error) {
-	log.Println("[INFO] OnDownloadRequest", ticket)
 	return "downloader_string", protocol.NilError()
 }
 
 func TestNodeP2P(t *testing.T) {
-	var FileSize, FileCount, Target int64 = 10240, 10, 3
+	err := performNodesInteraction(1024, 1, 1)
+	if err != nil {
+		t.Error(err)
+	}
+}
 
+func performNodesInteraction(FileSize, FileCount, Target int64) error {
 	alice, bob, proxy, ctxV, closer := makeThreeParty()
 	defer closer()
 
 	mh, err := multihash.FromB58String("QmQTw94j68Dgakgtfd45bG3TZG6CAfc427UVRH4mugg4q4")
 	if err != nil {
-		t.Fatal("mh decode", err)
+		return fmt.Errorf("mh decode: %w", err)
 	}
 
 	files := mustMakeNRandomBytes(FileSize, int(FileCount))
@@ -207,20 +256,20 @@ func TestNodeP2P(t *testing.T) {
 	// alice encrypt files
 	As, ciphers, err := encryptFiles(alice, files)
 	if err != nil {
-		t.Fatal(err)
+		return err
 	}
 	ctxV.SetValue(ctxAPoints, As)
 
 	// alice upload encrypted files
 	if err = uploadFiles(alice, proxy, ciphers, mh); err != nil {
-		t.Fatal(err)
+		return err
 	}
 	ctxV.SetValue(ctxFiles, ciphers)
 	ctxV.SetValue(ctxFilesCount, FileCount)
 
 	// bob send choice
 	if err = sendChoice(alice, bob, mh, Target); err != nil {
-		t.Fatal(err)
+		return err
 	}
 
 	// bob download files
@@ -232,21 +281,23 @@ func TestNodeP2P(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	time.AfterFunc(replyTimeout, cancel)
 	if _, err := bob.SendDownloadRequest(ctx, proxy.Host.ID(), downloadTicket); err != nil {
-		t.Error("bob download ticket error:", err)
+		return fmt.Errorf("bob download ticket: %w", err)
 	}
 
 	// bob decrypt files
 	bobCipher := bob.Ctx.Value(ctxFiles).([][]byte)[Target-1]
 	bobFile, err := decryptFile(bob, bobCipher, Target-1)
 	if err != nil {
-		t.Fatal("bob decrypt file error:", err)
+		return fmt.Errorf("bob decrypt file: %w", err)
 	}
 	targetFile := files[Target-1]
 
 	// compare
 	if !bytes.Equal(bobFile, targetFile) {
-		t.Error("file not equal")
+		return errors.New("bob decrypted file not equal")
 	}
+
+	return nil
 }
 
 type ContextWithValue struct {
