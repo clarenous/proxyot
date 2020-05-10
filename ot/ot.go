@@ -56,14 +56,14 @@ func (params *Params) CalculateKeyPoints(Y, L, pkA curve.Point, count int64) (kp
 	// calculate puzzles
 	kps = make([]curve.Point, count)
 	for i := int64(1); i <= count; i++ {
-		kps[i-1] = params.calculateKeyPoint(t, Y, L, pkA, big.NewInt(i))
+		kps[i-1] = params.calculateKeyPoint(t, Y, pkA, big.NewInt(i))
 	}
 	// calculate LPrime = t * L
 	LPrime = newPoint().ScalarMult(L, t)
 	return
 }
 
-func (params *Params) calculateKeyPoint(t *big.Int, yp, lp, pkA curve.Point, ordinal *big.Int) (kpi curve.Point) {
+func (params *Params) calculateKeyPoint(t *big.Int, yp, pkA curve.Point, ordinal *big.Int) (kpi curve.Point) {
 	// kpi = t * yp - i * t * pkA
 	kpi = newPoint().ScalarMult(yp, t)
 	temp := newPoint().ScalarMult(pkA, new(big.Int).Mul(ordinal, t))
