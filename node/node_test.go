@@ -5,11 +5,13 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/csv"
 	"errors"
 	"fmt"
 	"log"
 	"math/big"
 	mrand "math/rand"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -70,6 +72,7 @@ const (
 
 var (
 	tcAliceEncrypt        = NewTimeCounter("alice_encrypt")
+	tcAliceCalculateBs    = NewTimeCounter("alice_calculate_bs")
 	tcAliceGenerateReKeys = NewTimeCounter("alice_generate_re_keys")
 	tcBobSendChoice       = NewTimeCounter("bob_send_choice")
 	tcBobDecrypt          = NewTimeCounter("bob_decrypt")
@@ -78,11 +81,14 @@ var (
 
 var allTimeCounters = []*TimeCounter{
 	tcAliceEncrypt,
+	tcAliceCalculateBs,
 	tcAliceGenerateReKeys,
 	tcBobSendChoice,
 	tcBobDecrypt,
 	tcProxyReEncrypt,
 }
+
+var csvFile *csv.Writer
 
 func ClearAllTimeCounters() {
 	for _, tc := range allTimeCounters {
@@ -169,6 +175,10 @@ func (alice *Alice) OnChoiceRequest(choice *protocol.OtChoice) protocol.Error {
 
 	// generate bob temp keys
 	keys := deriveKeysFromPoints(kps)
+
+	tcAliceCalculateBs.Add(time.Since(start))
+
+	start = time.Now()
 
 	// generate re-keys
 	reKeys := make([]curve.Point, len(keys))
@@ -260,10 +270,11 @@ func (proxy *Proxy) OnDownloadRequest(ticket *protocol.DownloadTicket) (string, 
 }
 
 func TestNodeP2P(t *testing.T) {
-	mrand.Seed(time.Now().UnixNano())
+	// init csv writer
+	os.Create("bench")
 
 	var Target int64 = 5
-	for FileSize := int64(1000); FileSize <= 1000000; FileSize *= 10 {
+	for FileSize := int64(1_000); FileSize <= 1_000_000; FileSize *= 10 {
 		for FileCount := int64(10); FileCount <= 100; FileCount += 10 {
 			err := performNodesInteraction(FileSize, FileCount, Target)
 			if err != nil {
@@ -362,10 +373,17 @@ func deriveKeysFromPoints(points []curve.Point) []*big.Int {
 }
 
 func deriveKeyFromPoint(point curve.Point) *big.Int {
-	h := sha256.Sum256(point.Marshal())
-	bi := new(big.Int).SetBytes(h[:])
-	bi.Mod(bi, curve.Order)
-	return bi
+	var h = sha256.Sum256(point.Marshal())
+	var k = new(big.Int)
+	for {
+		k.SetBytes(h[:])
+		k.Mod(k, curve.Order)
+		if k.Sign() > 0 {
+			break
+		}
+		h = sha256.Sum256(h[:])
+	}
+	return k
 }
 
 func makeThreeParty() (*Alice, *Bob, *Proxy, *ContextWithValue, func()) {
@@ -512,4 +530,61 @@ func sendChoice(alice *Alice, bob *Bob, mh multihash.Multihash, target int64) er
 		fmt.Errorf("bob send choice: %w", err)
 	}
 	return nil
+}
+
+func TestGenerateKeyTime(t *testing.T) {
+	var round = 100_000
+	testGenerateKeyTime(round, true)
+}
+
+func testGenerateKeyTime(round int, print bool) time.Duration {
+	// generate ts
+	ts := make([]*big.Int, round)
+	for i := range ts {
+		ts[i] = big.NewInt(mrand.Int63())
+	}
+	// generate y points
+	yPoints := make([]curve.Point, round)
+	for i := range yPoints {
+		yPoints[i] = newRandPoint(curve.TypeG1)
+	}
+	// generate pkAs
+	pkAs := make([]curve.Point, round)
+	for i := range pkAs {
+		pkAs[i] = newRandPoint(curve.TypeG1)
+	}
+	// generate ordinals
+	ordinals := make([]*big.Int, round)
+	for i := range ordinals {
+		ordinals[i] = big.NewInt(mrand.Int63n(100_000))
+	}
+	// generate keys
+	start := time.Now()
+	for i := 0; i < round; i++ {
+		kpi := calculateKeyPoint(ts[i], yPoints[i], pkAs[i], ordinals[i])
+		deriveKeyFromPoint(kpi)
+	}
+	elapsed := time.Since(start)
+	if print {
+		fmt.Printf("node: generate_key, round: %d, elapsed(ms): %d, avg(ms): %f\n",
+			round, elapsed.Milliseconds(), float64(elapsed.Milliseconds())/float64(round))
+	}
+	return elapsed
+}
+
+func calculateKeyPoint(t *big.Int, yp, pkA curve.Point, ordinal *big.Int) (kpi curve.Point) {
+	// kpi = t * yp - i * t * pkA
+	kpi = curve.NewPoint(curve.TypeG1).ScalarMult(yp, t)
+	temp := curve.NewPoint(curve.TypeG1).ScalarMult(pkA, new(big.Int).Mul(ordinal, t))
+	kpi.Add(kpi, temp.Neg(temp))
+	return
+}
+
+func newRandPoint(typ curve.Curve) curve.Point {
+	r := big.NewInt(mrand.Int63())
+	return curve.NewPoint(typ).ScalarBaseMult(r)
+}
+
+func init() {
+	mrand.Seed(time.Now().UnixNano())
 }
