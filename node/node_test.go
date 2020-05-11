@@ -4,14 +4,11 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
-	"encoding/csv"
 	"errors"
 	"fmt"
 	"log"
 	"math/big"
 	mrand "math/rand"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -71,6 +68,8 @@ const (
 )
 
 var (
+	tcSystemInit          = NewTimeCounter("sys_init")
+	tcSystemShare         = NewTimeCounter("sys_share")
 	tcAliceEncrypt        = NewTimeCounter("alice_encrypt")
 	tcAliceCalculateBs    = NewTimeCounter("alice_calculate_bs")
 	tcAliceGenerateReKeys = NewTimeCounter("alice_generate_re_keys")
@@ -80,6 +79,8 @@ var (
 )
 
 var allTimeCounters = []*TimeCounter{
+	tcSystemInit,
+	tcSystemShare,
 	tcAliceEncrypt,
 	tcAliceCalculateBs,
 	tcAliceGenerateReKeys,
@@ -87,8 +88,6 @@ var allTimeCounters = []*TimeCounter{
 	tcBobDecrypt,
 	tcProxyReEncrypt,
 }
-
-var csvFile *csv.Writer
 
 func ClearAllTimeCounters() {
 	for _, tc := range allTimeCounters {
@@ -98,7 +97,7 @@ func ClearAllTimeCounters() {
 
 func PrintAllTimeCounters() {
 	for _, tc := range allTimeCounters {
-		fmt.Printf("item: %s, count: %d, avg: %f seconds\n", tc.Name(), tc.Count(), tc.Avg().Seconds())
+		fmt.Printf("item: %s, count: %d, avg: %d ms\n", tc.Name(), tc.Count(), tc.Avg().Milliseconds())
 	}
 }
 
@@ -270,9 +269,6 @@ func (proxy *Proxy) OnDownloadRequest(ticket *protocol.DownloadTicket) (string, 
 }
 
 func TestNodeP2P(t *testing.T) {
-	// init csv writer
-	os.Create("bench")
-
 	var Target int64 = 5
 	for FileSize := int64(1_000); FileSize <= 1_000_000; FileSize *= 10 {
 		for FileCount := int64(10); FileCount <= 100; FileCount += 10 {
@@ -300,6 +296,8 @@ func performNodesInteraction(FileSize, FileCount, Target int64) error {
 
 	files := mustMakeNRandomBytes(FileSize, int(FileCount))
 
+	sysInitStart := time.Now()
+
 	// alice encrypt files
 	As, ciphers, err := encryptFiles(alice, files)
 	if err != nil {
@@ -313,6 +311,10 @@ func performNodesInteraction(FileSize, FileCount, Target int64) error {
 	}
 	ctxV.SetValue(ctxFiles, ciphers)
 	ctxV.SetValue(ctxFilesCount, FileCount)
+
+	tcSystemInit.Add(time.Since(sysInitStart))
+
+	sysShareStart := time.Now()
 
 	// bob send choice
 	if err = sendChoice(alice, bob, mh, Target); err != nil {
@@ -338,6 +340,8 @@ func performNodesInteraction(FileSize, FileCount, Target int64) error {
 		return fmt.Errorf("bob decrypt file: %w", err)
 	}
 	targetFile := files[Target-1]
+
+	tcSystemShare.Add(time.Since(sysShareStart))
 
 	// compare
 	if !bytes.Equal(bobFile, targetFile) {
@@ -367,23 +371,9 @@ func (ctx *ContextWithValue) SetValue(key, value interface{}) {
 func deriveKeysFromPoints(points []curve.Point) []*big.Int {
 	keys := make([]*big.Int, len(points))
 	for i := range points {
-		keys[i] = deriveKeyFromPoint(points[i])
+		keys[i] = curve.DeriveFieldElementFromPoint(points[i])
 	}
 	return keys
-}
-
-func deriveKeyFromPoint(point curve.Point) *big.Int {
-	var h = sha256.Sum256(point.Marshal())
-	var k = new(big.Int)
-	for {
-		k.SetBytes(h[:])
-		k.Mod(k, curve.Order)
-		if k.Sign() > 0 {
-			break
-		}
-		h = sha256.Sum256(h[:])
-	}
-	return k
 }
 
 func makeThreeParty() (*Alice, *Bob, *Proxy, *ContextWithValue, func()) {
@@ -472,7 +462,7 @@ func decryptFile(bob *Bob, cipher []byte, ordinal int64) (file []byte, err error
 	APrimes := bob.Ctx.Value(ctxAPrimePoints).([]curve.Point)
 	LPrime := bob.Ctx.Value(ctxLPrime).(curve.Point)
 	kp := ot.RevealKeyPoint(LPrime, bob.PrivateKey)
-	b := deriveKeyFromPoint(kp)
+	b := curve.DeriveFieldElementFromPoint(kp)
 
 	buf := bytes.NewBuffer(nil)
 	err = pre.DecryptByReceiver(APrimes[ordinal], b, pre.NewDecryptClosure(bytes.NewReader(cipher), buf))
@@ -562,7 +552,7 @@ func testGenerateKeyTime(round int, print bool) time.Duration {
 	start := time.Now()
 	for i := 0; i < round; i++ {
 		kpi := calculateKeyPoint(ts[i], yPoints[i], pkAs[i], ordinals[i])
-		deriveKeyFromPoint(kpi)
+		curve.DeriveFieldElementFromPoint(kpi)
 	}
 	elapsed := time.Since(start)
 	if print {
