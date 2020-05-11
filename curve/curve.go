@@ -2,6 +2,7 @@ package curve
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"fmt"
 	"io"
 	"math/big"
@@ -54,4 +55,22 @@ func RandomFieldElement(r io.Reader) (*big.Int, error) {
 	}
 
 	return k, nil
+}
+
+// DeriveFieldElementFromPoint derives a field element k by the following rules:
+// (1) Calculate h = SHA256(point.Marshal())
+// (2) Calculate k = BigInt(h) % Order
+// (3) If k == 0, calculate h = SHA256(h), then jump to (2)
+func DeriveFieldElementFromPoint(point Point) *big.Int {
+	var h = sha256.Sum256(point.Marshal())
+	var k = new(big.Int)
+	for {
+		k.SetBytes(h[:])
+		k.Mod(k, Order)
+		if k.Sign() > 0 {
+			break
+		}
+		h = sha256.Sum256(h[:])
+	}
+	return k
 }
