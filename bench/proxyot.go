@@ -234,24 +234,19 @@ func decryptMessage(skB *big.Int, APrime, LPrime curve.Point, cipher []byte) (me
 }
 
 func initShareMessages(pkA curve.Point, size, n, target int64) (As []curve.Point, ciphertext []byte, err error) {
-	msg := make([]byte, size)
 	As = make([]curve.Point, n)
 	// save memory
 	for i := int64(0); i < n; i++ {
 		if i == target-1 {
-			continue
+			msg := make([]byte, size)
+			mustReadRandomBytes(msg)
+			if As[i], ciphertext, err = encryptMessage(pkA, msg); err != nil {
+				return nil, nil, err
+			}
+			msg = nil
+		} else {
+			As[i] = curve.NewPoint(pkA.Curve()).ScalarMult(pkA, randFiledElement())
 		}
-		mustReadRandomBytes(msg)
-		A, _, err := encryptMessage(pkA, msg)
-		if err != nil {
-			return nil, nil, err
-		}
-		As[i] = A
-	}
-	// return target related ciphertext
-	mustReadRandomBytes(msg)
-	if As[target-1], ciphertext, err = encryptMessage(pkA, msg); err != nil {
-		return nil, nil, err
 	}
 	return
 }
