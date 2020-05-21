@@ -86,6 +86,18 @@ func benchEncrypt(b *testing.B, size int64) {
 	}
 }
 
+func benchAESEncrypt(b *testing.B, size int64) {
+	b.StopTimer()
+	data := mustMakeRandomBytes(size)
+	key := randPoint(curve.TypeGT).Marshal()
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		if err := pre.NewEncryptClosure(bytes.NewReader(data), ioutil.Discard)(key); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 func benchDecrypt(b *testing.B, size int64) {
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
@@ -109,6 +121,24 @@ func benchDecrypt(b *testing.B, size int64) {
 
 		b.StartTimer()
 		if err := pre.DecryptByReceiver(APrime, skB, decClosure); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func benchAESDecrypt(b *testing.B, size int64) {
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		data := mustMakeRandomBytes(size)
+		cipherBuf := bytes.NewBuffer(make([]byte, 0, size+4096))
+		encryptClosure := pre.NewEncryptClosure(bytes.NewReader(data), cipherBuf)
+		key := randPoint(curve.TypeGT).Marshal()
+		if err := encryptClosure(key); err != nil {
+			b.Fatal(err)
+		}
+		decryptClosure := pre.NewDecryptClosure(bytes.NewReader(cipherBuf.Bytes()), ioutil.Discard)
+		b.StartTimer()
+		if err := decryptClosure(key); err != nil {
 			b.Fatal(err)
 		}
 	}

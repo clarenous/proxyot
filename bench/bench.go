@@ -164,6 +164,70 @@ func ShareMessageResults(sizeMin, sizeMax, sizeRatio, countMin, countMax, countS
 	return
 }
 
+func Comparison(sizeMin, sizeMax, sizeRatio, countMin, countMax, countStep int64) (
+	ourWork, otPaper, yaoGang []float64, sizes []int64, counts []int64) {
+	for size := sizeMin; size <= sizeMax; size *= sizeRatio {
+		sizes = append(sizes, size)
+	}
+	for count := countMin; count <= countMax; count += countStep {
+		counts = append(counts, count)
+	}
+	// generate key
+	kg := ExecResult{
+		name: nameGenerateKey,
+		bs:   testing.Benchmark(func(b *testing.B) { benchGenerateKey(b) }),
+	}
+	kgT := kg.MsPerOp()
+	fmt.Println(kg.String())
+	// generate re_key
+	rkg := ExecResult{
+		name: nameGenerateReKey,
+		bs:   testing.Benchmark(func(b *testing.B) { benchGenerateReKey(b) }),
+	}
+	rkgT := rkg.MsPerOp()
+	fmt.Println(rkg.String())
+	// re_encrypt
+	re := ExecResult{
+		name: nameReEncrypt,
+		bs:   testing.Benchmark(func(b *testing.B) { benchReEncrypt(b) }),
+	}
+	reT := re.MsPerOp()
+	fmt.Println(re.String())
+	// encrypt 32 bytes
+	enc32 := ExecResult{
+		name:  nameEncrypt,
+		bs:    testing.Benchmark(func(b *testing.B) { benchAESEncrypt(b, 32) }),
+		extra: map[string]interface{}{"msg_size": 32},
+	}
+	enc32T := enc32.MsPerOp()
+	fmt.Println(enc32.String())
+	// encrypt size bytes
+	encTs := make([]float64, 0, len(sizes))
+	for i := range sizes {
+		enc := ExecResult{
+			name:  nameEncrypt,
+			bs:    testing.Benchmark(func(b *testing.B) { benchAESEncrypt(b, sizes[i]) }),
+			extra: map[string]interface{}{"msg_size": sizes[i]},
+		}
+		encT := enc.MsPerOp()
+		encTs = append(encTs, encT)
+		fmt.Println(enc.String())
+	}
+	for i, size := range sizes {
+		for count := countMin; count <= countMax; count += countStep {
+			ourWorkT := (kgT + rkgT + reT) * float64(count)
+			otPaperT := (kgT + encTs[i]) * float64(count)
+			yaoGangT := (kgT*2 + enc32T + encTs[i]) * float64(count)
+			ourWork = append(ourWork, ourWorkT)
+			otPaper = append(otPaper, otPaperT)
+			yaoGang = append(yaoGang, yaoGangT)
+			fmt.Printf("size: %d, count: %d, out_work: %.3f, ot: %.3f, yao_gang: %.3f\n",
+				size, count, ourWorkT, otPaperT, yaoGangT)
+		}
+	}
+	return
+}
+
 func init() {
 	rand.Seed(time.Now().UnixNano())
 }
