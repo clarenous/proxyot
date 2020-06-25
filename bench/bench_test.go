@@ -30,7 +30,7 @@ type ShareMessageResults struct {
 }
 
 func TestShareMessageResults(t *testing.T) {
-	var sizeMin, sizeMax, sizeRatio int64 = 1_000, 1_000_000, 10
+	var sizeMin, sizeMax, sizeRatio int64 = 1_000, 1_000_000_000, 10
 	var countMin, countMax, countStep int64 = 10, 110, 10
 
 	results, sizes, counts := bench.ShareMessageResults(sizeMin, sizeMax, sizeRatio, countMin, countMax, countStep)
@@ -164,6 +164,37 @@ func TestComparisonResults(t *testing.T) {
 		YaoGang:   yaoGang,
 	}
 	jsonFile, err := os.Create("comparison_results.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer jsonFile.Close()
+	jsonEncoder := json.NewEncoder(jsonFile)
+	jsonEncoder.SetIndent("", "  ")
+	if err = jsonEncoder.Encode(costResults); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestComparisonResults500(t *testing.T) {
+	var sizeMin, sizeMax, sizeRatio int64 = 500_000, 5_000_000, 10
+	var countMin, countMax, countStep int64 = 10, 110, 10
+
+	ourWork, otPaper, yaoGang, sizes, counts := bench.Comparison(sizeMin, sizeMax, sizeRatio, countMin, countMax, countStep)
+	// generate json output
+	costResults := &ComparisonResults{
+		SizeMin:   sizeMin,
+		SizeMax:   sizeMax,
+		SizeRatio: sizeRatio,
+		CountMin:  countMin,
+		CountMax:  countMax,
+		CountStep: countStep,
+		Sizes:     sizes,
+		Counts:    counts,
+		OurWork:   ourWork,
+		Ot:        otPaper,
+		YaoGang:   yaoGang,
+	}
+	jsonFile, err := os.Create("comparison_results_500k_5m.json")
 	if err != nil {
 		t.Fatal(err)
 	}

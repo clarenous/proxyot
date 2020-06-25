@@ -159,7 +159,7 @@ func benchShareMessage(b *testing.B, size int64, count int64) {
 		}
 
 		b.StartTimer()
-		if err = shareMessages(skA, skB, pkA, pkB, As, ciphertext, count, target, true); err != nil {
+		if err = shareMessages(skA, skB, pkA, pkB, As, ciphertext, count, target, false); err != nil {
 			b.Fatal(err)
 		}
 	}
