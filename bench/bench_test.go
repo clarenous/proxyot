@@ -205,3 +205,42 @@ func TestComparisonResults500(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+type ComparisonAliceResults struct {
+	Size      int64     `json:"size"`
+	Count     int64     `json:"count"`
+	RoundMin  int64     `json:"round_min"`
+	RoundMax  int64     `json:"round_max"`
+	RoundStep int64     `json:"round_step"`
+	Rounds    []int64   `json:"rounds"`
+	OurWork   []float64 `json:"our_work"`
+	Ot        []float64 `json:"ot"`
+}
+
+func TestComparisonAlice(t *testing.T) {
+	var size, count int64 = 500_000, 10
+	var roundMin, roundMax, roundStep int64 = 0, 110, 5
+
+	ourWork, otPaper, rounds := bench.ComparisonAlice(size, count, roundMin, roundMax, roundStep)
+	// generate json output
+	costResults := &ComparisonAliceResults{
+		Size:      size,
+		Count:     count,
+		RoundMin:  roundMin,
+		RoundMax:  roundMax,
+		RoundStep: roundStep,
+		Rounds:    rounds,
+		OurWork:   ourWork,
+		Ot:        otPaper,
+	}
+	jsonFile, err := os.Create("comparison_alice_results_500k.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer jsonFile.Close()
+	jsonEncoder := json.NewEncoder(jsonFile)
+	jsonEncoder.SetIndent("", "  ")
+	if err = jsonEncoder.Encode(costResults); err != nil {
+		t.Fatal(err)
+	}
+}

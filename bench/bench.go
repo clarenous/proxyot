@@ -228,6 +228,23 @@ func Comparison(sizeMin, sizeMax, sizeRatio, countMin, countMax, countStep int64
 	return
 }
 
+func ComparisonAlice(size, count, roundMin, roundMax, roundStep int64) (ourWork, otPaper []float64, rounds []int64) {
+	//kgT, rkgT, encT := 0.323, 1.022, 0.494 // 100 KB
+	kgT, rkgT, encT := 0.323, 1.022, 2.440 // 500 KB
+	for round := roundMin; round <= roundMax; round += roundStep {
+		rounds = append(rounds, round)
+	}
+	for round := roundMin; round <= roundMax; round += roundStep {
+		ourWorkT := (kgT+rkgT)*float64(count*round) + encT*float64(count)
+		otPaperT := (kgT + encT) * float64(count*round)
+		ourWork = append(ourWork, ourWorkT)
+		otPaper = append(otPaper, otPaperT)
+		fmt.Printf("size: %d, count: %d, round: %d, out_work: %.3f, ot: %.3f\n",
+			100_000, count, round, ourWorkT, otPaperT)
+	}
+	return
+}
+
 func init() {
 	rand.Seed(time.Now().UnixNano())
 }
