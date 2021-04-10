@@ -43,6 +43,10 @@ func NewFileObj(filename string, blockSize int64) (obj *FileObj, err error) {
 	return obj, nil
 }
 
+func (obj *FileObj) Close() error {
+	return obj.Close()
+}
+
 func (obj *FileObj) FileSize() int64 {
 	return obj.fileSize
 }
