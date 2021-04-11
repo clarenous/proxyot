@@ -2,11 +2,11 @@ package chash_test
 
 import (
 	"crypto/rand"
-	"math/big"
-	"testing"
-
 	"github.com/clarenous/proxyot/chash"
 	"github.com/clarenous/proxyot/curve"
+	"math/big"
+	"testing"
+	"time"
 )
 
 func TestVerify(t *testing.T) {
@@ -32,6 +32,44 @@ func TestComputeCollision(t *testing.T) {
 	}
 	t.Log("Old Hash:", oldH.String())
 	t.Log("New Hash:", newH.String())
+}
+
+func TestComputeHashTime(t *testing.T) {
+	var count = 1000
+	// prepare
+	m, _, _, _, Y, R, err := generateParams()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// normal mode
+	start := time.Now()
+	for i := 0; i < count; i++ {
+		chash.ComputeHash(Y, R, m)
+	}
+	spent := time.Since(start)
+	t.Log(count, "rounds time spent:", spent.Seconds())
+}
+
+func TestComputeCollisionTime(t *testing.T) {
+	var count = 1000
+	// prepare
+	m, _, x, r, Y, _, err := generateParams()
+	if err != nil {
+		t.Fatal(err)
+	}
+	mps := make([]*big.Int, count)
+	for i := range mps {
+		if mps[i], err = curve.RandomFieldElement(rand.Reader); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// normal mode
+	start := time.Now()
+	for i := 0; i < count; i++ {
+		chash.ComputeCollision(Y, x, r, m, mps[i], curve.Order)
+	}
+	spent := time.Since(start)
+	t.Log(count, "rounds time spent:", spent.Seconds())
 }
 
 func generateParams() (m, mp, x, r *big.Int, Y, R curve.Point, err error) {
