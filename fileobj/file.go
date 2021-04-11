@@ -44,7 +44,7 @@ func NewFileObj(filename string, blockSize int64) (obj *FileObj, err error) {
 }
 
 func (obj *FileObj) Close() error {
-	return obj.Close()
+	return obj.f.Close()
 }
 
 func (obj *FileObj) FileSize() int64 {
