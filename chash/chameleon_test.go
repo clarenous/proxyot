@@ -2,11 +2,12 @@ package chash_test
 
 import (
 	"crypto/rand"
-	"github.com/clarenous/proxyot/chash"
-	"github.com/clarenous/proxyot/curve"
 	"math/big"
 	"testing"
 	"time"
+
+	"github.com/clarenous/proxyot/chash"
+	"github.com/clarenous/proxyot/curve"
 )
 
 func TestVerify(t *testing.T) {
