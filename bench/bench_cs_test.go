@@ -16,8 +16,8 @@ const (
 func TestCSFigure1(t *testing.T) {
 	var rounds = 100
 	fileSizes := []int64{16 * MiB, 64 * MiB, 256 * MiB}
-	blockCounts := []int64{16, 64, 256}
-	result, err := bench.CSFigure1(rounds, fileSizes, blockCounts)
+	blockSizes := []int64{64 * KiB, 256 * KiB, MiB}
+	result, err := bench.CSFigure1(rounds, fileSizes, blockSizes)
 	if err != nil {
 		t.Fatal(err)
 	}

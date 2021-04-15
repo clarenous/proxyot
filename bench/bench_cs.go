@@ -28,24 +28,24 @@ type CSFigure1Result struct {
 
 // Cloud Storage Figure1 includes:
 // Setup (key generation), Chameleon Hash, Merkle Tree, Update Block
-func CSFigure1(rounds int, fileSizes, blockCounts []int64) (*CSFigure1Result, error) {
+func CSFigure1(rounds int, fileSizes, blockSizes []int64) (*CSFigure1Result, error) {
 	result := &CSFigure1Result{
 		ExecSetupMsTimes:  nil,
 		ExecHashMsTimes:   nil,
 		ExecMerkleMsTimes: nil,
 		ExecUpdateMsTimes: nil,
 		FileSizes:         make([]int64, len(fileSizes)),
-		BlockCounts:       make([]int64, len(blockCounts)),
-		BlockSizes:        nil,
+		BlockCounts:       nil,
+		BlockSizes:        make([]int64, len(blockSizes)),
 	}
-	copy(result.BlockCounts, blockCounts)
 	copy(result.FileSizes, fileSizes)
-	for _, size := range fileSizes {
-		for _, count := range blockCounts {
-			fmt.Println("Running CSFigure1", size, count)
+	copy(result.BlockSizes, blockSizes)
+	for _, fSize := range fileSizes {
+		for _, bSize := range blockSizes {
+			fmt.Println("Running CSFigure1", fSize, bSize)
 			var sumSetup, sumHash, sumMerkle, sumUpdate int64
 			for round := 0; round < rounds; round++ {
-				setupT, hashT, merkleT, updateT, err := runCSFigure1(count, size)
+				setupT, hashT, merkleT, updateT, err := runCSFigure1(bSize, fSize)
 				if err != nil {
 					return nil, err
 				}
@@ -55,7 +55,7 @@ func CSFigure1(rounds int, fileSizes, blockCounts []int64) (*CSFigure1Result, er
 				sumUpdate += updateT.Nanoseconds()
 			}
 			roundsF := float64(rounds)
-			result.BlockSizes = append(result.BlockSizes, size/count)
+			result.BlockCounts = append(result.BlockCounts, getBlockCount(fSize, bSize))
 			result.ExecSetupMsTimes = append(result.ExecSetupMsTimes, ns2ms(sumSetup)/roundsF)
 			result.ExecHashMsTimes = append(result.ExecHashMsTimes, ns2ms(sumHash)/roundsF)
 			result.ExecMerkleMsTimes = append(result.ExecMerkleMsTimes, ns2ms(sumMerkle)/roundsF)
@@ -65,8 +65,8 @@ func CSFigure1(rounds int, fileSizes, blockCounts []int64) (*CSFigure1Result, er
 	return result, nil
 }
 
-func runCSFigure1(blockCount, fileSize int64) (setupTime, hashTime, merkleTime, updateTime time.Duration, err error) {
-	blockSize := fileSize / blockCount
+func runCSFigure1(blockSize, fileSize int64) (setupTime, hashTime, merkleTime, updateTime time.Duration, err error) {
+	blockCount := getBlockCount(fileSize, blockSize)
 	// run prepare
 	var mf *fileobj.MemFileObj
 	if mf, err = fileobj.NewMemFileObj(fileSize, blockSize); err != nil {
@@ -133,4 +133,12 @@ func runCSFigure1(blockCount, fileSize int64) (setupTime, hashTime, merkleTime, 
 	}
 	updateTime = time.Since(updateStart)
 	return
+}
+
+func getBlockCount(fSize, bSize int64) int64 {
+	count, rem := fSize/bSize, fSize%bSize
+	if rem > 0 {
+		count += 1
+	}
+	return count
 }
