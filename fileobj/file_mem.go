@@ -1,5 +1,14 @@
 package fileobj
 
+import (
+	"math/rand"
+	"time"
+)
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
 type MemFileObj struct {
 	data       []byte
 	fileSize   int64
@@ -8,8 +17,12 @@ type MemFileObj struct {
 }
 
 func NewMemFileObj(fileSize, blockSize int64) (obj *MemFileObj, err error) {
+	data := make([]byte, fileSize)
+	if _, err = rand.Read(data); err != nil {
+		return nil, err
+	}
 	obj = &MemFileObj{
-		data:      make([]byte, fileSize),
+		data:      data,
 		fileSize:  fileSize,
 		blockSize: blockSize,
 	}
