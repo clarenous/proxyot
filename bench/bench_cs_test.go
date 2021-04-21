@@ -27,3 +27,18 @@ func TestCSFigure1(t *testing.T) {
 	}
 	fmt.Println(string(data))
 }
+
+func TestCSFigure2(t *testing.T) {
+	var rounds = 100
+	var updateCount int64 = 10
+	blockSizes := []int64{64 * KiB, 256 * KiB, MiB}
+	result, err := bench.CSFigure2(rounds, updateCount, blockSizes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println(string(data))
+}

@@ -142,3 +142,97 @@ func getBlockCount(fSize, bSize int64) int64 {
 	}
 	return count
 }
+
+// Cloud Storage Figure2 includes:
+// Update Block, Transmission Cost
+type CSFigure2Result struct {
+	ExecUpdateMsTimes [][]float64 `json:"exec_update_ms_times"`
+	TransCostKiB      [][]float64 `json:"trans_cost_kib"`
+	UpdateCount       int64       `json:"update_count"`
+	BlockSizes        []int64     `json:"block_sizes"`
+}
+
+// Cloud Storage Figure2 includes:
+// Update Block, Transmission Cost
+func CSFigure2(rounds int, updateCount int64, blockSizes []int64) (*CSFigure2Result, error) {
+	var elementWiseAdd = func(s1, s2 []int64) []int64 {
+		for i := range s1 {
+			s1[i] = s1[i] + s2[i]
+		}
+		return s1
+	}
+	result := &CSFigure2Result{
+		ExecUpdateMsTimes: nil,
+		TransCostKiB:      nil,
+		UpdateCount:       updateCount,
+		BlockSizes:        make([]int64, len(blockSizes)),
+	}
+	copy(result.BlockSizes, blockSizes)
+	for _, bSize := range blockSizes {
+		sumUpdates := make([]int64, updateCount)
+		sumCosts := make([]int64, updateCount)
+		for round := 0; round < rounds; round++ {
+			updateTimes, transCosts, err := runCSFigure2(updateCount, bSize)
+			if err != nil {
+				return nil, err
+			}
+			sumUpdates = elementWiseAdd(sumUpdates, updateTimes)
+			sumCosts = elementWiseAdd(sumCosts, transCosts)
+		}
+		avgUpdateTimes := make([]float64, updateCount)
+		avgTransCosts := make([]float64, updateCount)
+		for i := int64(0); i < updateCount; i++ {
+			avgUpdateTimes[i] = ns2ms(sumUpdates[i]) / float64(rounds)
+			avgTransCosts[i] = float64(sumCosts[i]) / (float64(rounds) * 1024)
+		}
+		result.ExecUpdateMsTimes = append(result.ExecUpdateMsTimes, avgUpdateTimes)
+		result.TransCostKiB = append(result.TransCostKiB, avgTransCosts)
+	}
+	return result, nil
+}
+
+// updateTimes represent nano-seconds
+func runCSFigure2(updateCount, blockSize int64) (updateTimes []int64, transCosts []int64, err error) {
+	const metadataSize = 64 + 64 // R_prime and other meta
+	// run prepare
+	var Y curve.Point
+	var x *big.Int
+	if x, Y, err = curve.NewRandomPoint(curve.TypeG1, crand.Reader); err != nil {
+		return
+	}
+	r, R, err := curve.NewRandomPoint(curve.TypeG2, crand.Reader)
+	if err != nil {
+		return
+	}
+	data := make([]byte, blockSize)
+	if _, err = rand.Read(data); err != nil {
+		return
+	}
+	targetM := new(big.Int).Mod(new(big.Int).SetBytes(merkle.SHA256(data).Ptr().Bytes()), curve.Order)
+	targetCHash := chash.ComputeHash(Y, R, targetM)
+	var newDataBlocks [][]byte
+	for i := int64(0); i < updateCount; i++ {
+		newData := make([]byte, blockSize)
+		if _, err = rand.Read(newData); err != nil {
+			return
+		}
+		newDataBlocks = append(newDataBlocks, newData)
+	}
+	// run update
+	var sumTime int64
+	var sumCost int64
+	for i := range newDataBlocks {
+		updateStart := time.Now()
+		newM := new(big.Int).Mod(new(big.Int).SetBytes(merkle.SHA256(newDataBlocks[i]).Ptr().Bytes()), curve.Order)
+		newCHash, _, _ := chash.ComputeCollision(Y, x, r, targetM, newM, curve.Order)
+		if !newCHash.Equals(targetCHash) {
+			err = errors.New("invalid chameleon hash collision")
+			return
+		}
+		sumTime += time.Since(updateStart).Nanoseconds()
+		sumCost += metadataSize + blockSize
+		updateTimes = append(updateTimes, sumTime)
+		transCosts = append(transCosts, sumCost)
+	}
+	return
+}
