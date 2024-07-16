@@ -13,6 +13,9 @@ import (
 
 const (
 	namePointMultG1   = "point_multiplication_g1"
+	namePointDivG1    = "point_div_g1"
+	namePointDivG2    = "point_div_g2"
+	namePointDivGT    = "point_div_gt"
 	namePointMultG2   = "point_multiplication_g2"
 	namePointMultGT   = "point_multiplication_gt"
 	namePointPair     = "point_pair"
@@ -80,6 +83,25 @@ func ExecutionResults() []ExecResult {
 		ExecResult{
 			name: namePointMultGT,
 			bs:   testing.Benchmark(func(b *testing.B) { benchScalarMult(b, curve.TypeGT) }),
+		},
+	)
+	// point scalar div
+	results = append(results,
+		ExecResult{
+			name: namePointDivG1,
+			bs:   testing.Benchmark(func(b *testing.B) { benchScalarDiv(b, curve.TypeG1) }),
+		},
+	)
+	results = append(results,
+		ExecResult{
+			name: namePointDivG2,
+			bs:   testing.Benchmark(func(b *testing.B) { benchScalarDiv(b, curve.TypeG2) }),
+		},
+	)
+	results = append(results,
+		ExecResult{
+			name: namePointDivGT,
+			bs:   testing.Benchmark(func(b *testing.B) { benchScalarDiv(b, curve.TypeGT) }),
 		},
 	)
 	// point pair
