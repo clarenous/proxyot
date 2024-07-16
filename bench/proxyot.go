@@ -32,6 +32,16 @@ func benchScalarMult(b *testing.B, typ curve.Curve) {
 	}
 }
 
+func benchScalarDiv(b *testing.B, typ curve.Curve) {
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		p, k := randPoint(typ), randFiledElement()
+		b.StartTimer()
+		ik := new(big.Int).ModInverse(k, curve.Order)
+		p.ScalarMult(p, ik)
+	}
+}
+
 func benchPair(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
