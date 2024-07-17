@@ -13,11 +13,14 @@ import (
 
 const (
 	namePointMultG1   = "point_multiplication_g1"
+	namePointMultG2   = "point_multiplication_g2"
+	namePointMultGT   = "point_multiplication_gt"
 	namePointDivG1    = "point_div_g1"
 	namePointDivG2    = "point_div_g2"
 	namePointDivGT    = "point_div_gt"
-	namePointMultG2   = "point_multiplication_g2"
-	namePointMultGT   = "point_multiplication_gt"
+	namePointAddG1    = "point_add_g1"
+	namePointAddG2    = "point_add_g2"
+	namePointAddGT    = "point_add_gt"
 	namePointPair     = "point_pair"
 	nameGenerateKey   = "generate_key"
 	nameGenerateReKey = "generate_re_key"
@@ -102,6 +105,25 @@ func ExecutionResults() []ExecResult {
 		ExecResult{
 			name: namePointDivGT,
 			bs:   testing.Benchmark(func(b *testing.B) { benchScalarDiv(b, curve.TypeGT) }),
+		},
+	)
+	// point add
+	results = append(results,
+		ExecResult{
+			name: namePointAddG1,
+			bs:   testing.Benchmark(func(b *testing.B) { benchPointAdd(b, curve.TypeG1) }),
+		},
+	)
+	results = append(results,
+		ExecResult{
+			name: namePointAddG2,
+			bs:   testing.Benchmark(func(b *testing.B) { benchPointAdd(b, curve.TypeG2) }),
+		},
+	)
+	results = append(results,
+		ExecResult{
+			name: namePointAddGT,
+			bs:   testing.Benchmark(func(b *testing.B) { benchPointAdd(b, curve.TypeGT) }),
 		},
 	)
 	// point pair

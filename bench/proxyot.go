@@ -42,6 +42,13 @@ func benchScalarDiv(b *testing.B, typ curve.Curve) {
 	}
 }
 
+func benchPointAdd(b *testing.B, typ curve.Curve) {
+	p1, p2 := randPoint(typ), randPoint(typ)
+	for i := 0; i < b.N; i++ {
+		p1.Add(p1, p2)
+	}
+}
+
 func benchPair(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		b.StopTimer()
