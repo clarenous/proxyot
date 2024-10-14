@@ -100,6 +100,33 @@ func testPairTime(round int, print bool) time.Duration {
 	return elapsed
 }
 
+func TestDistributiveLaw(t *testing.T) {
+	// point A, B (on G1)
+	pA, pB := newRandPoint(curve.TypeG1), newRandPoint(curve.TypeG1)
+
+	// point C (on G2)
+	pC := newRandPoint(curve.TypeG2)
+
+	// calculate left side
+	leftG1Point := curve.NewPoint(curve.TypeG1)
+	leftG1Point.Add(pA, pB)
+	leftGtPoint := curve.Pair(leftG1Point.(*curve.G1), pC.(*curve.G2))
+
+	// calculate right side
+	rightGtPoint1 := curve.Pair(pA.(*curve.G1), pC.(*curve.G2))
+	rightGtPoint2 := curve.Pair(pB.(*curve.G1), pC.(*curve.G2))
+	rightGtPoint := curve.NewPoint(curve.TypeGT).Add(rightGtPoint1, rightGtPoint2)
+
+	// check equality between left and right side
+	leftGtPointStr := leftGtPoint.String()
+	rightGtPointStr := rightGtPoint.String()
+	fmt.Println("Left:", leftGtPointStr)
+	fmt.Println("Right:", rightGtPointStr)
+	if leftGtPointStr != rightGtPointStr {
+		t.Error("Failed on TestDistributiveLaw")
+	}
+}
+
 func init() {
 	rand.Seed(time.Now().UnixNano())
 }
