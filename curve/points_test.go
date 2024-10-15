@@ -1,6 +1,7 @@
 package curve_test
 
 import (
+	"encoding/hex"
 	"fmt"
 	"math/big"
 	"math/rand"
@@ -125,6 +126,19 @@ func TestDistributiveLaw(t *testing.T) {
 	if leftGtPointStr != rightGtPointStr {
 		t.Error("Failed on TestDistributiveLaw")
 	}
+}
+
+func TestPrintOut(t *testing.T) {
+	// aG1, aG2, aGT
+	a := big.NewInt(rand.Int63())
+	aG1 := curve.NewPoint(curve.TypeG1).ScalarBaseMult(a)
+	aG2 := curve.NewPoint(curve.TypeG2).ScalarBaseMult(a)
+	aGT := curve.NewPoint(curve.TypeGT).ScalarBaseMult(a)
+
+	// print out
+	fmt.Println("aG1:", hex.EncodeToString(aG1.Marshal()))
+	fmt.Println("aG2:", hex.EncodeToString(aG2.Marshal()))
+	fmt.Println("aGT:", hex.EncodeToString(aGT.Marshal()))
 }
 
 func init() {
